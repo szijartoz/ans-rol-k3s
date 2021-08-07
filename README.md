@@ -17,6 +17,11 @@ Role Variables
 	dashboard: false
 	helm: false
 	namespace: false
+	service_account: false
+	service_account_names:
+          - itadmin
+          - jenkins
+
 
 Dependencies
 ------------
