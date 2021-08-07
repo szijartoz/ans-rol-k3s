@@ -1,0 +1,11 @@
+---
+# defaults file for ans-rol-k3s
+
+ans_rol_k3s:
+    dashboard: false
+    helm: false
+    namespace: false
+    service_account: false
+    service_account_names:
+      - itadmin
+      - jenkins

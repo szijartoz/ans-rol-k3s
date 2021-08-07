@@ -1,0 +1,169 @@
+---
+# tasks file for ans-rol-k3s
+- name: "file | copy k3s install"
+  copy:
+    dest: "/root/"
+    src: "files/k3s.sh"
+    owner: root
+    group: root
+    mode: '0750'
+- name: "inst | install k3s service"
+  shell: /root/k3s.sh
+
+- name: "Enable unsecure certificate"
+  lineinfile:
+    path: /etc/rancher/k3s/k3s.yaml
+    insertafter: "^server: https://127.0.0.1:6443+" 
+    line: "    insecure-skip-tls-verify: true"
+    firstmatch: yes
+    state: present
+
+- name: "Remove not needed certificate"
+  lineinfile:
+    path: /etc/rancher/k3s/k3s.yaml
+    state: absent
+    regexp: '^certificate-authority-data:'
+
+- name: "file | copy k3s test"
+  copy:
+    dest: "/root/"
+    src: "files/k3s-tst.sh"
+    owner: root
+    group: root
+    mode: '0750'
+- name: "test | execute k3s test , resuits are in /tmp/k3s-tst.log file."
+  shell: /root/k3s-tst.sh > /tmp/k3s-tst.log
+
+- name: set up K3S mode
+  lineinfile:
+    path: /root/.bashrc
+    regexp: '^export K3S_KUBECONFIG_MODE='
+    line: export K3S_KUBECONFIG_MODE="644"
+
+- name: set up K3S url
+  lineinfile:
+    path: /root/.bashrc
+    regexp: '^export K3S_URL='
+    line: export K3S_URL="https://127.0.0.1:6443"
+
+- name: set up KUBERNETES master variable
+  lineinfile:
+    path: /root/.bashrc
+    regexp: '^export KUBERNETES_MASTER='
+    line: export KUBERNETES_MASTER=https://127.0.0.1:6443
+
+- name: set up KUBECONFIG
+  lineinfile:
+    path: /root/.bashrc
+    regexp: '^export KUBECONFIG='
+    line: export KUBECONFIG="~/.kube/config:/etc/rancher/k3s/k3s.yaml"
+
+- name: "info | Get k3s token"
+  shell: cat /var/lib/rancher/k3s/server/node-token
+  register: token
+
+- name: set up K3S token
+  lineinfile:
+    path: /root/.bashrc
+    regexp: '^export K3S_TOKEN='
+    line: export K3S_TOKEN="{{ token.stdout }}"
+
+- name: "extra | helm install"
+  block:
+    - name: "file | copy helm install script "
+      copy:
+        dest: "/root/"
+        src: "files/k3s-helm.sh"
+        owner: root
+        group: root
+        mode: '0755'
+    - name: "file | copy helm rbac yaml "
+      copy:
+        dest: "/root/"
+        src: "files/k3s-helm-rbac-config.yaml"
+        owner: root
+        group: root
+        mode: '0644'
+    - name: "inst | install helm "
+      shell: /root/k3s-helm.sh
+      ignore_errors: yes
+  when: ans_rol_k3s.helm
+
+- name: "extra | namespaces install (test,development,production)"
+  block:
+    - name: "file | copy namespace yaml files "
+      copy:
+        dest: "/root/"
+        src: "files/namespace/{{ item }}"
+        owner: root
+        group: root
+        mode: '0644'
+      with_items:
+        - namespace-test.yaml
+        - namespace-development.yaml
+        - namespace-production.yaml
+    - name: "file | copy namespace install script "
+      copy:
+        dest: "/root/"
+        src: "files/namespace/namespace-create.sh"
+        owner: root
+        group: root
+        mode: '0755'
+    - name: "inst | configure namespaces "
+      shell: /root/namespace-create.sh
+  when: ans_rol_k3s.helm
+
+- name: "extra | install serviceaccounts"
+  block:
+    - name: "inst | create serviceaccounts "
+      shell: "kubectl create serviceaccount {{ item }}"
+      with_items:
+        - "{{ans_rol_k3s.service_account_names}}"
+  when: ans_rol_k3s.service_account
+
+
+- name: "extra | dashboard install"
+  block:
+    - name: "file | copy k3s-dashboard install"
+      copy:
+        dest: "/root/"
+        src: "files/k3s-dashboard.sh"
+        owner: root
+        group: root
+        mode: '0750'
+    - name: "file | copy k3s-dashboard1 "
+      copy:
+        dest: "/etc/rancher/k3s/"
+        src: "files/dashboard.admin-user.yaml"
+        owner: root
+        group: root
+        mode: '0644'
+    - name: "file | copy k3s-dashboard2 "
+      copy:
+        dest: "/etc/rancher/k3s/"
+        src: "files/dashboard.admin-user-role.yaml"
+        owner: root
+        group: root
+        mode: '0644'
+    - name: "file | copy k3s-get secret (token) script "
+      copy:
+        dest: "/root/"
+        src: "files/k3s-get-secret.sh"
+        owner: root
+        group: root
+        mode: '0755'
+    - name: "file | copy k3s-proxy script "
+      copy:
+        dest: "/root/"
+        src: "files/k3s-proxy.sh"
+        owner: root
+        group: root
+        mode: '0755'
+    - name: "inst | install k3s dashboard "
+      shell: /root/k3s-dashboard.sh
+    - name: "secr | get the TOKEN"
+      shell: /root/k3s-get-secret.sh
+      register: k3s
+    - debug: var=k3s.stdout_lines
+  when: ans_rol_k3s.dashboard
+

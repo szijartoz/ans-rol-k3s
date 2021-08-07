@@ -1,0 +1,44 @@
+#!/bin/bash
+
+cd /root
+
+echo "**** Begin preparing helm"
+
+kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+kubectl get storageclass
+
+#download helm
+curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get > install-helm.sh
+
+#Make instalation script executable
+chmod u+x install-helm.sh
+
+#Install helm
+./install-helm.sh
+
+###curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+
+echo "**** End preparing helm"
+
+
+##kubectl create -f k3s-helm-rbac-config.yaml
+
+echo "**** Begin preparing helm k3s"
+#Create tiller service account
+
+kubectl -n kube-system create serviceaccount tiller
+
+#Create cluster role binding for tiller
+
+kubectl create clusterrolebinding tiller --clusterrole cluster-admin --serviceaccount=kube-system:tiller
+
+#Initialize tiller
+
+##KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm init --history-max 10  --tiller-image jessestuart/tiller
+echo "**** End preparing helm k3s"
+exit
+
+#kubectl create serviceaccount --namespace kube-system tiller
+#kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
+KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm init --history-max 10 --service-account tiller
+#KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm init --history-max 10 --service-account default
